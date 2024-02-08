@@ -133,6 +133,8 @@ type JWTAuth struct {
 	// Use dot notation to access nested claims.
 	MetaClaims map[string]string `json:"meta_claims"`
 
+	VerifyClaims map[string]string `json:"verify_claims"`
+
 	logger        *zap.Logger
 	parsedSignKey interface{} // can be []byte, *rsa.PublicKey, *ecdsa.PublicKey, etc.
 
@@ -215,6 +217,11 @@ func (ja *JWTAuth) Validate() error {
 			return fmt.Errorf("invalid meta claim: %s -> %s", claim, placeholder)
 		}
 	}
+	for claim, value := range ja.VerifyClaims {
+		if claim == "" || value == "" {
+			return fmt.Errorf("invalid verify claim: %s -> %s", claim, value)
+		}
+	}
 	return nil
 }
 
@@ -232,7 +239,11 @@ func (ja *JWTAuth) keyProvider() jws.KeyProviderFunc {
 				}
 				return fmt.Errorf("key specified by kid %q not found in JWKs", kid)
 			}
-			sink.Key(ja.determineSigningAlgorithm(key.Algorithm()), key)
+			alg := ja.determineSigningAlgorithm(key.Algorithm())
+			if alg == "" && sig.ProtectedHeaders().Algorithm() != "" {
+				alg = sig.ProtectedHeaders().Algorithm()
+			}
+			sink.Key(alg, key)
 		} else {
 			sink.Key(ja.determineSigningAlgorithm(sig.ProtectedHeaders().Algorithm()), ja.parsedSignKey)
 		}
@@ -308,6 +319,22 @@ func (ja *JWTAuth) Authenticate(rw http.ResponseWriter, r *http.Request) (User, 
 			}
 			if !isValidAudience {
 				err = ErrInvalidAudience
+				logger.Error("invalid token", zap.Error(err))
+				continue
+			}
+		}
+
+		if ja.VerifyClaims != nil {
+			isClaimVerfied := true
+			for claim, value := range ja.VerifyClaims {
+				if jwt.Validate(gotToken, jwt.WithClaimValue(claim, value)) != nil &&
+					jwt.Validate(gotToken, jwt.WithValidator(ClaimContainsString(claim, value))) != nil {
+					isClaimVerfied = false
+					err = fmt.Errorf("invalid claim %s", claim)
+					break
+				}
+			}
+			if !isClaimVerfied {
 				logger.Error("invalid token", zap.Error(err))
 				continue
 			}

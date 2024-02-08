@@ -16,3 +16,5 @@
 caddy
 .vscode/
 .DS_Store
+
+.idea/

@@ -23,6 +23,7 @@ func TestParsingCaddyfileNormalCase(t *testing.T) {
 		audience_whitelist https://api.example.io https://learn.example.com
 		user_claims uid user_id login username
 		meta_claims "IsAdmin -> is_admin" "gender"
+		verify_claims "role -> abc_test"
 	}
 	`),
 	}
@@ -36,6 +37,7 @@ func TestParsingCaddyfileNormalCase(t *testing.T) {
 		AudienceWhitelist: []string{"https://api.example.io", "https://learn.example.com"},
 		UserClaims:        []string{"uid", "user_id", "login", "username"},
 		MetaClaims:        map[string]string{"IsAdmin": "is_admin", "gender": "gender"},
+		VerifyClaims:      map[string]string{"role": "abc_test"},
 	}
 
 	h, err := parseCaddyfile(helper)

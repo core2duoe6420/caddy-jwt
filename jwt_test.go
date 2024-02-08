@@ -515,6 +515,85 @@ func TestAuthenticate_VerifyAudienceWhitelist(t *testing.T) {
 	assert.Empty(t, gotUser.ID)
 }
 
+func TestAuthenticate_VerifyClaim(t *testing.T) {
+	ja := &JWTAuth{
+		SignKey: TestSignKey,
+		logger:  testLogger,
+
+		VerifyClaims: map[string]string{"role": "test"},
+	}
+	assert.Nil(t, ja.Validate())
+
+	// no role -> fail
+	claims := MapClaims{
+		"sub": "ggicci",
+		"iss": "https://api.github.com",
+	}
+	rw := httptest.NewRecorder()
+	r, _ := http.NewRequest("GET", "/", nil)
+	r.Header.Add("Authorization", issueTokenString(claims))
+	gotUser, authenticated, err := ja.Authenticate(rw, r)
+	assert.NotNil(t, err)
+	assert.False(t, authenticated)
+	assert.Empty(t, gotUser.ID)
+
+	// single role -> ok
+	claims = MapClaims{
+		"sub":  "ggicci",
+		"iss":  "https://api.github.com",
+		"role": "test",
+	}
+	rw = httptest.NewRecorder()
+	r, _ = http.NewRequest("GET", "/", nil)
+	r.Header.Add("Authorization", issueTokenString(claims))
+	gotUser, authenticated, err = ja.Authenticate(rw, r)
+	assert.Nil(t, err)
+	assert.True(t, authenticated)
+	assert.Equal(t, gotUser.ID, "ggicci")
+
+	// array role -> ok
+	claims = MapClaims{
+		"sub":  "ggicci",
+		"iss":  "https://api.github.com",
+		"role": []string{"foo", "test"},
+	}
+	rw = httptest.NewRecorder()
+	r, _ = http.NewRequest("GET", "/", nil)
+	r.Header.Add("Authorization", issueTokenString(claims))
+	gotUser, authenticated, err = ja.Authenticate(rw, r)
+	assert.Nil(t, err)
+	assert.True(t, authenticated)
+	assert.Equal(t, gotUser.ID, "ggicci")
+
+	// invalid single role -> fail
+	claims = MapClaims{
+		"sub":  "ggicci",
+		"iss":  "https://api.github.com",
+		"role": "foo",
+	}
+	rw = httptest.NewRecorder()
+	r, _ = http.NewRequest("GET", "/", nil)
+	r.Header.Add("Authorization", issueTokenString(claims))
+	gotUser, authenticated, err = ja.Authenticate(rw, r)
+	assert.NotNil(t, err)
+	assert.False(t, authenticated)
+	assert.Empty(t, gotUser.ID)
+
+	// invalid array role -> fail
+	claims = MapClaims{
+		"sub":  "ggicci",
+		"iss":  "https://api.github.com",
+		"role": []string{"foo", "bar"},
+	}
+	rw = httptest.NewRecorder()
+	r, _ = http.NewRequest("GET", "/", nil)
+	r.Header.Add("Authorization", issueTokenString(claims))
+	gotUser, authenticated, err = ja.Authenticate(rw, r)
+	assert.NotNil(t, err)
+	assert.False(t, authenticated)
+	assert.Empty(t, gotUser.ID)
+}
+
 func TestAuthenticate_PopulateUserMetadata(t *testing.T) {
 	ja := &JWTAuth{
 		SignKey: TestSignKey,
