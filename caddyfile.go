@@ -70,18 +70,20 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 					}
 					ja.MetaClaims[claim] = placeholder
 				}
+
 			case "verify_claims":
 				ja.VerifyClaims = make(map[string]string)
-				for _, metaClaim := range h.RemainingArgs() {
-					claim, placeholder, err := parseMetaClaim(metaClaim)
+				for _, verifyClaim := range h.RemainingArgs() {
+					claim, value, err := parseMetaClaim(verifyClaim)
 					if err != nil {
 						return nil, h.Errf("invalid verify_claims: %w", err)
 					}
-					if _, ok := ja.MetaClaims[claim]; ok {
+					if _, ok := ja.VerifyClaims[claim]; ok {
 						return nil, h.Errf("invalid verify_claims: duplicate claim: %s", claim)
 					}
-					ja.VerifyClaims[claim] = placeholder
+					ja.VerifyClaims[claim] = value
 				}
+				
 			case "header_first":
 				return nil, h.Err("option header_first deprecated, the priority now defaults to from_query > from_header > from_cookies")
 

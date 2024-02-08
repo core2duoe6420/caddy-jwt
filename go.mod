@@ -1,4 +1,4 @@
-module github.com/ggicci/caddy-jwt
+module github.com/core2duoe6420/caddy-jwt
 
 go 1.20
 
