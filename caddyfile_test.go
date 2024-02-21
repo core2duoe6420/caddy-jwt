@@ -19,6 +19,10 @@ func TestParsingCaddyfileNormalCase(t *testing.T) {
 		from_query access_token token _tok
 		from_header X-Api-Key
 		from_cookies user_session SESSID
+		jwk_url {
+			http://www.test.com
+			http://www.test2.com
+		}
 		issuer_whitelist https://api.example.com
 		audience_whitelist https://api.example.io https://learn.example.com
 		user_claims uid user_id login username
@@ -30,6 +34,7 @@ func TestParsingCaddyfileNormalCase(t *testing.T) {
 	expectedJA := &JWTAuth{
 		SignKey:           TestSignKey,
 		SignAlgorithm:     "HS256",
+		JwkUrls:           []string{"http://www.test.com", "http://www.test2.com"},
 		FromQuery:         []string{"access_token", "token", "_tok"},
 		FromHeader:        []string{"X-Api-Key"},
 		FromCookies:       []string{"user_session", "SESSID"},

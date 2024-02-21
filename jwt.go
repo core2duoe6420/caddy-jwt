@@ -49,7 +49,7 @@ type JWTAuth struct {
 	// publish the JWKs in the standard format as described in
 	// https://tools.ietf.org/html/rfc7517.
 	// If you'd like to use JWK, set this field and leave SignKey unset.
-	JWKURL string `json:"jwk_url"`
+	JwkUrls []string `json:"jwk_url"`
 
 	// SignAlgorithm is the the signing algorithm used. Available values are defined in
 	// https://www.rfc-editor.org/rfc/rfc7518#section-3.1
@@ -138,8 +138,7 @@ type JWTAuth struct {
 	logger        *zap.Logger
 	parsedSignKey interface{} // can be []byte, *rsa.PublicKey, *ecdsa.PublicKey, etc.
 
-	jwkCache     *jwk.Cache
-	jwkCachedSet jwk.Set
+	jwkCache *jwk.Cache
 }
 
 // CaddyModule implements caddy.Module interface.
@@ -163,23 +162,45 @@ func (ja *JWTAuth) Error(err error) {
 }
 
 func (ja *JWTAuth) usingJWK() bool {
-	return ja.SignKey == "" && ja.JWKURL != ""
+	return ja.SignKey == "" && len(ja.JwkUrls) > 0
 }
 
 func (ja *JWTAuth) setupJWKLoader() {
 	cache := jwk.NewCache(context.Background(), jwk.WithErrSink(ja))
-	cache.Register(ja.JWKURL)
+	for _, url := range ja.JwkUrls {
+		if err := cache.Register(url); err != nil {
+			ja.logger.Info("using JWKs from URL", zap.String("url", url))
+			return
+		}
+	}
 	ja.jwkCache = cache
 	// ignore any error loading the JWKS endpoint now as it may not be available at startup
 	_ = ja.refreshJWKCache()
-	ja.jwkCachedSet = jwk.NewCachedSet(cache, ja.JWKURL)
-	ja.logger.Info("using JWKs from URL", zap.String("url", ja.JWKURL), zap.Int("loaded_keys", ja.jwkCachedSet.Len()))
 }
 
 // refreshJWKCache refreshes the JWK cache. It validates the JWKs from the given URL.
 func (ja *JWTAuth) refreshJWKCache() error {
-	_, err := ja.jwkCache.Refresh(context.Background(), ja.JWKURL)
-	return err
+	for _, url := range ja.JwkUrls {
+		_, err := ja.jwkCache.Refresh(context.Background(), url)
+		if err != nil {
+			return nil
+		}
+	}
+	return nil
+}
+
+func (ja *JWTAuth) lookupKeyID(kid string) (jwk.Key, bool) {
+	for _, url := range ja.JwkUrls {
+		set, err := ja.jwkCache.Get(context.Background(), url)
+		if err != nil {
+			continue
+		}
+		key, found := set.LookupKeyID(kid)
+		if found {
+			return key, found
+		}
+	}
+	return nil, false
 }
 
 // Validate implements caddy.Validator interface.
@@ -229,7 +250,7 @@ func (ja *JWTAuth) keyProvider() jws.KeyProviderFunc {
 	return func(_ context.Context, sink jws.KeySink, sig *jws.Signature, _ *jws.Message) error {
 		if ja.usingJWK() {
 			kid := sig.ProtectedHeaders().KeyID()
-			key, found := ja.jwkCachedSet.LookupKeyID(kid)
+			key, found := ja.lookupKeyID(kid)
 			if !found {
 				// trigger a refresh if the key is not found
 				go ja.refreshJWKCache()

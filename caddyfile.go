@@ -37,8 +37,13 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 					return nil, h.Errf("invalid sign_alg: %q", ja.SignAlgorithm)
 				}
 			case "jwk_url":
-				if !h.AllArgs(&ja.JWKURL) {
-					return nil, h.Errf("invalid jwk_url: %q", ja.JWKURL)
+				ja.JwkUrls = make([]string, 0)
+				for nesting := h.Nesting(); h.NextBlock(nesting); {
+					url := h.Val()
+					ja.JwkUrls = append(ja.JwkUrls, url)
+				}
+				if len(ja.JwkUrls) == 0 {
+					return nil, h.Errf("invalid jwk_url")
 				}
 			case "from_query":
 				ja.FromQuery = h.RemainingArgs()
@@ -83,7 +88,7 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 					}
 					ja.VerifyClaims[claim] = value
 				}
-				
+
 			case "header_first":
 				return nil, h.Err("option header_first deprecated, the priority now defaults to from_query > from_header > from_cookies")
 
