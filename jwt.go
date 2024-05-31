@@ -348,7 +348,7 @@ func (ja *JWTAuth) Authenticate(rw http.ResponseWriter, r *http.Request) (User, 
 		if ja.VerifyClaims != nil {
 			isClaimVerfied := true
 			for claim, value := range ja.VerifyClaims {
-				if jwt.Validate(gotToken, jwt.WithClaimValue(claim, value)) != nil &&
+				if jwt.Validate(gotToken, jwt.WithValidator(ClaimValueIsStringIgnoreCase(claim, value))) != nil &&
 					jwt.Validate(gotToken, jwt.WithValidator(ClaimContainsString(claim, value))) != nil {
 					isClaimVerfied = false
 					err = fmt.Errorf("invalid claim %s", claim)

@@ -551,11 +551,53 @@ func TestAuthenticate_VerifyClaim(t *testing.T) {
 	assert.True(t, authenticated)
 	assert.Equal(t, gotUser.ID, "ggicci")
 
+	// single role case-insensitive -> ok
+	claims = MapClaims{
+		"sub":  "ggicci",
+		"iss":  "https://api.github.com",
+		"role": "TEST",
+	}
+	rw = httptest.NewRecorder()
+	r, _ = http.NewRequest("GET", "/", nil)
+	r.Header.Add("Authorization", issueTokenString(claims))
+	gotUser, authenticated, err = ja.Authenticate(rw, r)
+	assert.Nil(t, err)
+	assert.True(t, authenticated)
+	assert.Equal(t, gotUser.ID, "ggicci")
+
+	// single role wrong type -> fail
+	claims = MapClaims{
+		"sub":  "ggicci",
+		"iss":  "https://api.github.com",
+		"role": 1,
+	}
+	rw = httptest.NewRecorder()
+	r, _ = http.NewRequest("GET", "/", nil)
+	r.Header.Add("Authorization", issueTokenString(claims))
+	gotUser, authenticated, err = ja.Authenticate(rw, r)
+	assert.NotNil(t, err)
+	assert.False(t, authenticated)
+	assert.Empty(t, gotUser.ID)
+
 	// array role -> ok
 	claims = MapClaims{
 		"sub":  "ggicci",
 		"iss":  "https://api.github.com",
 		"role": []string{"foo", "test"},
+	}
+	rw = httptest.NewRecorder()
+	r, _ = http.NewRequest("GET", "/", nil)
+	r.Header.Add("Authorization", issueTokenString(claims))
+	gotUser, authenticated, err = ja.Authenticate(rw, r)
+	assert.Nil(t, err)
+	assert.True(t, authenticated)
+	assert.Equal(t, gotUser.ID, "ggicci")
+
+	// array role case-insensitive -> ok
+	claims = MapClaims{
+		"sub":  "ggicci",
+		"iss":  "https://api.github.com",
+		"role": []string{"foo", "TEST"},
 	}
 	rw = httptest.NewRecorder()
 	r, _ = http.NewRequest("GET", "/", nil)
